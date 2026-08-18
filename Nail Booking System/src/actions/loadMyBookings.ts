@@ -1,18 +1,44 @@
-import { action } from '@uibakery/data';
+import { supabase } from '../lib/supabase';
+import type { Database } from '../types/database.types';
 
-function loadMyBookings() {
-  return action('loadMyBookings', 'SQL', {
-    datasourceName: 'Nail Designer Booking DB',
-    query: `
-      SELECT
-        b.id, b.service_id, b.booking_date, b.start_time, b.end_time, b.status, b.created_at,
-        s.name AS service_name, s.duration_minutes, s.price
-      FROM bookings b
-      JOIN services s ON s.id = b.service_id
-      WHERE b.client_id = {{params.clientId}}::bigint
-      ORDER BY b.booking_date DESC, b.start_time DESC;
-    `,
-  });
+type BookingRow = Database['public']['Tables']['bookings']['Row'];
+
+export interface SessionUser {
+  id: number;
+  role: 'designer' | 'client';
 }
 
-export default loadMyBookings;
+export async function loadMyBookings(user: SessionUser): Promise<BookingRow[]> {
+  if (!user?.id) {
+    throw new Error('Não autorizado: Usuário não autenticado.');
+  }
+
+  let query = supabase
+    .from('bookings')
+    .select(`
+      id,
+      client_id,
+      service_id,
+      booking_date,
+      start_time,
+      end_time,
+      status,
+      created_at,
+      updated_at
+    `)
+    .order('booking_date', { ascending: false })
+    .order('start_time', { ascending: false });
+
+  // Se for cliente, restringe estritamente aos próprios agendamentos (Anti-IDOR)
+  if (user.role === 'client') {
+    query = query.eq('client_id', user.id);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw new Error(`Falha ao carregar agendamentos: ${error.message}`);
+  }
+
+  return data ?? [];
+}
