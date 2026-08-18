@@ -3,6 +3,8 @@ import { format, parse, addMinutes, isBefore, isAfter, isEqual } from 'date-fns'
 import { bookingDataService, AvailabilityData } from '../../../services/bookingDataService';
 import { createBooking } from '../../../actions/createBooking';
 import { Service, Booking } from '../../../types/database.types';
+import { notify } from '../../../lib/notifications';
+import { FeedbackToaster } from '../../../components/ui/FeedbackToaster';
 
 interface BookingFlowProps {
   clientId: number;
@@ -26,7 +28,6 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
   const [isLoadingServices, setIsLoadingServices] = useState<boolean>(true);
   const [isLoadingAvailability, setIsLoadingAvailability] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // 1. Carregar lista de serviços ativos
   useEffect(() => {
@@ -44,7 +45,7 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
       } catch (err) {
         if (isMounted) {
           const msg = err instanceof Error ? err.message : 'Erro ao carregar serviços.';
-          setErrorMessage(msg);
+          notify.error('Falha ao carregar serviços', msg);
           onError?.(msg);
         }
       } finally {
@@ -61,14 +62,13 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
   // 2. Carregar disponibilidade para a data selecionada
   const fetchAvailability = useCallback(async (dateStr: string) => {
     setIsLoadingAvailability(true);
-    setErrorMessage(null);
     try {
       const data = await bookingDataService.getAvailabilityByDate(dateStr);
       setAvailability(data);
       setSelectedTimeSlot(null);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro ao consultar disponibilidade.';
-      setErrorMessage(msg);
+      notify.error('Falha na agenda', msg);
       onError?.(msg);
     } finally {
       setIsLoadingAvailability(false);
@@ -81,12 +81,11 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
     }
   }, [selectedDate, fetchAvailability]);
 
-  // Identificar serviço selecionado
   const currentService = useMemo(() => {
     return services.find((s) => s.id === selectedServiceId) || null;
   }, [services, selectedServiceId]);
 
-  // 3. Cálculo determinístico dos Slots de Horário
+  // 3. Cálculo dos slots de horário
   const availableSlots = useMemo(() => {
     if (!availability || !currentService) return [];
     if (availability.isBlocked || !availability.workingHours || availability.workingHours.is_closed) {
@@ -106,7 +105,6 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
     while (true) {
       const currentSlotEnd = addMinutes(currentSlotStart, currentService.duration_minutes);
       
-      // Se o término do atendimento ultrapassa o fim do expediente, encerra
       if (isAfter(currentSlotEnd, workEnd)) {
         break;
       }
@@ -114,12 +112,10 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
       const slotStartStr = format(currentSlotStart, 'HH:mm');
       const slotEndStr = format(currentSlotEnd, 'HH:mm');
 
-      // Checagem de colisão com reservas existentes do dia
       const hasCollision = availability.bookings.some((b) => {
         const bookingStart = parse(b.start_time.slice(0, 5), 'HH:mm', baseDate);
         const bookingEnd = parse(b.end_time.slice(0, 5), 'HH:mm', baseDate);
 
-        // Condição de sobreposição: max(start1, start2) < min(end1, end2)
         const startsBeforeBookingEnds = isBefore(currentSlotStart, bookingEnd);
         const endsAfterBookingStarts = isAfter(currentSlotEnd, bookingStart);
 
@@ -132,7 +128,6 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
         available: !hasCollision,
       });
 
-      // Passo de 30 minutos entre inícios de slots
       currentSlotStart = addMinutes(currentSlotStart, 30);
       if (isAfter(currentSlotStart, workEnd) || isEqual(currentSlotStart, workEnd)) {
         break;
@@ -142,21 +137,20 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
     return slots;
   }, [availability, currentService]);
 
-  // 4. Submissão do Agendamento
+  // 4. Submissão do agendamento
   const handleBookingSubmit = async () => {
     if (!selectedServiceId || !selectedDate || !selectedTimeSlot) {
-      setErrorMessage('Selecione o serviço, a data e um horário disponível.');
+      notify.warning('Dados incompletos', 'Selecione o serviço, data e horário.');
       return;
     }
 
     const chosenSlot = availableSlots.find((s) => s.startTime === selectedTimeSlot);
     if (!chosenSlot || !chosenSlot.available) {
-      setErrorMessage('O horário selecionado não está mais disponível.');
+      notify.error('Horário indisponível', 'Por favor selecione outro horário.');
       return;
     }
 
     setIsSubmitting(true);
-    setErrorMessage(null);
 
     const result = await createBooking(
       { id: clientId, role: 'client' },
@@ -171,25 +165,20 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
     setIsSubmitting(false);
 
     if (!result.success || !result.booking) {
-      setErrorMessage(result.error || 'Falha ao confirmar o agendamento.');
+      notify.handleDatabaseError(result.error, 'Não foi possível concluir o agendamento.');
       onError?.(result.error || 'Falha ao confirmar o agendamento.');
-      // Atualiza os horários para refletir a nova ocupação em caso de conflito
       void fetchAvailability(selectedDate);
       return;
     }
 
+    notify.success('Agendamento Confirmado!', `${currentService?.name} agendado para ${selectedDate} às ${chosenSlot.startTime}.`);
     onSuccess?.(result.booking);
   };
 
   return (
     <div className="mx-auto w-full max-w-2xl rounded-xl border border-border bg-card p-6 shadow-md">
+      <FeedbackToaster />
       <h2 className="text-xl font-bold text-foreground mb-6">Novo Agendamento</h2>
-
-      {errorMessage && (
-        <div className="mb-4 rounded-lg bg-destructive/10 p-4 border border-destructive text-destructive text-sm font-medium">
-          {errorMessage}
-        </div>
-      )}
 
       {/* Seleção de Serviço */}
       <div className="mb-6">
