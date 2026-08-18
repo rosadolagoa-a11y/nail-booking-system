@@ -1,0 +1,2 @@
+Applied migrations:
+1787063932_create_nail_booking_schema at 2026-08-18T14:43:22.321Z
