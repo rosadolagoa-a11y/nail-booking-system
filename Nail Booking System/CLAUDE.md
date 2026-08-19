@@ -178,3 +178,8 @@ Conteúdo definitivo configurado em `Nail Booking System/package.json`:
 
 
 * Validação de persistência de sessão e proteção de rotas RBAC.
+
+## Diretrizes de Resposta e Eficiência
+- Seja direto, conciso e objetivo nas alterações.
+- Evite refatorações em arquivos não solicitados diretamente pelo usuário.
+- Ao concluir uma tarefa independente, recomende o uso de /clear se a próxima tarefa for um contexto diferente.
