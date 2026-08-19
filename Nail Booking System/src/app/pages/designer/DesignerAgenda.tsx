@@ -1,27 +1,18 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { CalendarDays, DollarSign, Users } from 'lucide-react';
-import { useLoadAction, useMutateAction } from '@uibakery/data';
-import loadBookingsByDateRange from '@/actions/loadBookingsByDateRange';
+import loadBookingsByDateRange, { type BookingWithDetails } from '@/actions/loadBookingsByDateRange';
 import updateBookingStatus from '@/actions/updateBookingStatus';
 import { formatTimeLabel, toDateOnly } from '@/app/lib/timeUtils';
+import { useAuth } from '@/app/context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-type Booking = {
-  id: number;
-  booking_date: string;
-  start_time: string;
-  end_time: string;
-  status: 'confirmed' | 'cancelled' | 'completed';
-  client_name: string;
-  service_name: string;
-  price: string;
-};
+type Booking = BookingWithDetails;
 
 const statusVariants: Record<Booking['status'], 'default' | 'secondary' | 'destructive'> = {
   confirmed: 'default',
@@ -38,8 +29,11 @@ const statusLabels: Record<Booking['status'], string> = {
 type RangeMode = 'day' | 'week' | 'month';
 
 export default function DesignerAgenda() {
+  const { user } = useAuth();
   const [rangeMode, setRangeMode] = useState<RangeMode>('day');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const rangeParams = useMemo(() => {
     if (rangeMode === 'week') {
@@ -59,13 +53,19 @@ export default function DesignerAgenda() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rangeMode, selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate()]);
 
-  const [bookings, loading, , refresh]: [Booking[], boolean, Error | null, () => Promise<void>] = useLoadAction(
-    loadBookingsByDateRange,
-    [],
-    rangeParams,
-  );
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await loadBookingsByDateRange(rangeParams);
+      setBookings(data);
+    } finally {
+      setLoading(false);
+    }
+  }, [rangeParams]);
 
-  const [runUpdateStatus] = useMutateAction(updateBookingStatus);
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
   const totalBookings = bookings.filter(b => b.status !== 'cancelled').length;
   const totalRevenue = bookings
@@ -73,7 +73,8 @@ export default function DesignerAgenda() {
     .reduce((sum, b) => sum + Number(b.price), 0);
 
   const handleStatusChange = async (id: number, status: Booking['status']) => {
-    await runUpdateStatus({ id, status });
+    if (!user?.id) return;
+    await updateBookingStatus({ id: user.id, role: user.role }, { bookingId: id, status });
     await refresh();
   };
 

@@ -1,9 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { CalendarX2 } from 'lucide-react';
-import { useLoadAction, useMutateAction } from '@uibakery/data';
-import loadMyBookings from '@/actions/loadMyBookings';
+import loadMyBookings, { type MyBookingRow } from '@/actions/loadMyBookings';
 import updateBookingStatus from '@/actions/updateBookingStatus';
 import { formatTimeLabel, toDateOnly } from '@/app/lib/timeUtils';
 import { useAuth } from '@/app/context/AuthContext';
@@ -19,17 +18,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 
-type Booking = {
-  id: number;
-  service_id: number;
-  booking_date: string;
-  start_time: string;
-  end_time: string;
-  status: 'confirmed' | 'cancelled' | 'completed';
-  service_name: string;
-  duration_minutes: number;
-  price: string;
-};
+type Booking = MyBookingRow;
 
 const statusLabels: Record<Booking['status'], string> = {
   confirmed: 'Confirmada',
@@ -45,25 +34,43 @@ const statusVariants: Record<Booking['status'], 'default' | 'secondary' | 'destr
 
 export default function MyBookings() {
   const { user } = useAuth();
-  const myBookingsParams = useMemo(() => ({ clientId: user?.id }), [user?.id]);
-  const [bookings, loading, , refresh]: [Booking[], boolean, Error | null, () => Promise<void>] = useLoadAction(
-    loadMyBookings,
-    [],
-    myBookingsParams,
-    { enabled: Boolean(user?.id) },
-  );
-  const [runCancel, cancelling] = useMutateAction(updateBookingStatus);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [cancelling, setCancelling] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<Booking | null>(null);
+
+  const refresh = useCallback(async () => {
+    if (!user?.id) return;
+    setLoading(true);
+    try {
+      const data = await loadMyBookings({ id: user.id, role: user.role });
+      setBookings(data);
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id, user?.role]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
   const today = format(new Date(), 'yyyy-MM-dd');
   const upcoming = bookings.filter(b => b.status === 'confirmed' && b.booking_date.slice(0, 10) >= today);
   const history = bookings.filter(b => b.status !== 'confirmed' || b.booking_date.slice(0, 10) < today);
 
   const handleCancel = async () => {
-    if (!cancelTarget) return;
-    await runCancel({ id: cancelTarget.id, status: 'cancelled' });
-    setCancelTarget(null);
-    await refresh();
+    if (!cancelTarget || !user?.id) return;
+    setCancelling(true);
+    try {
+      await updateBookingStatus(
+        { id: user.id, role: user.role },
+        { bookingId: cancelTarget.id, status: 'cancelled' },
+      );
+      setCancelTarget(null);
+      await refresh();
+    } finally {
+      setCancelling(false);
+    }
   };
 
   const renderBooking = (booking: Booking, canCancel: boolean) => (

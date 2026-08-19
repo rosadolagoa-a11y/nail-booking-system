@@ -152,27 +152,27 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
 
     setIsSubmitting(true);
 
-    const result = await createBooking(
-      { id: clientId, role: 'client' },
-      {
-        service_id: selectedServiceId,
-        booking_date: selectedDate,
-        start_time: chosenSlot.startTime,
-        end_time: chosenSlot.endTime,
-      }
-    );
+    try {
+      const booking = await createBooking(
+        { id: clientId, role: 'client' },
+        {
+          serviceId: selectedServiceId,
+          bookingDate: selectedDate,
+          startTime: chosenSlot.startTime,
+          endTime: chosenSlot.endTime,
+        }
+      );
 
-    setIsSubmitting(false);
-
-    if (!result.success || !result.booking) {
-      notify.handleDatabaseError(result.error, 'Não foi possível concluir o agendamento.');
-      onError?.(result.error || 'Falha ao confirmar o agendamento.');
+      notify.success('Agendamento Confirmado!', `${currentService?.name} agendado para ${selectedDate} às ${chosenSlot.startTime}.`);
+      onSuccess?.(booking);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Falha ao confirmar o agendamento.';
+      notify.handleDatabaseError(err, 'Não foi possível concluir o agendamento.');
+      onError?.(msg);
       void fetchAvailability(selectedDate);
-      return;
+    } finally {
+      setIsSubmitting(false);
     }
-
-    notify.success('Agendamento Confirmado!', `${currentService?.name} agendado para ${selectedDate} às ${chosenSlot.startTime}.`);
-    onSuccess?.(result.booking);
   };
 
   return (
@@ -283,3 +283,5 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
     </div>
   );
 };
+
+export default BookingFlow;

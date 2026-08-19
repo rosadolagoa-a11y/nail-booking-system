@@ -1,14 +1,17 @@
-import { action } from '@uibakery/data';
+import { supabase } from '../lib/supabase';
+import type { Service } from '../types/database.types';
 
-function loadServices() {
-  return action('loadServices', 'SQL', {
-    datasourceName: 'Nail Designer Booking DB',
-    query: `
-      SELECT id, name, description, duration_minutes, price, is_active, created_at, updated_at
-      FROM services
-      ORDER BY name ASC;
-    `,
-  });
+export async function loadServices(): Promise<Service[]> {
+  const { data, error } = await supabase
+    .from('services')
+    .select('id, name, description, duration_minutes, price, is_active, created_at, updated_at')
+    .order('name', { ascending: true });
+
+  if (error) {
+    throw new Error(`Falha ao carregar serviços: ${error.message}`);
+  }
+
+  return data ?? [];
 }
 
 export default loadServices;

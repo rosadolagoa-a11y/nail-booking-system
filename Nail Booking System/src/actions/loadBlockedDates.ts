@@ -1,14 +1,17 @@
-import { action } from '@uibakery/data';
+import { supabase } from '../lib/supabase';
+import type { BlockedDate } from '../types/database.types';
 
-function loadBlockedDates() {
-  return action('loadBlockedDates', 'SQL', {
-    datasourceName: 'Nail Designer Booking DB',
-    query: `
-      SELECT id, blocked_date, reason, created_at
-      FROM blocked_dates
-      ORDER BY blocked_date ASC;
-    `,
-  });
+export async function loadBlockedDates(): Promise<BlockedDate[]> {
+  const { data, error } = await supabase
+    .from('blocked_dates')
+    .select('id, blocked_date, reason, created_at')
+    .order('blocked_date', { ascending: true });
+
+  if (error) {
+    throw new Error(`Falha ao carregar datas bloqueadas: ${error.message}`);
+  }
+
+  return data ?? [];
 }
 
 export default loadBlockedDates;

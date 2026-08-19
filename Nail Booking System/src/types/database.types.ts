@@ -35,6 +35,7 @@ export interface Database {
           password_hash?: string;
           role?: UserRole;
         };
+        Relationships: [];
       };
       services: {
         Row: {
@@ -65,6 +66,7 @@ export interface Database {
           is_active?: boolean;
           updated_at?: string;
         };
+        Relationships: [];
       };
       working_hours: {
         Row: {
@@ -87,6 +89,7 @@ export interface Database {
           end_time?: string | null;
           is_closed?: boolean;
         };
+        Relationships: [];
       };
       blocked_dates: {
         Row: {
@@ -105,6 +108,7 @@ export interface Database {
           blocked_date?: string;
           reason?: string | null;
         };
+        Relationships: [];
       };
       bookings: {
         Row: {
@@ -139,8 +143,25 @@ export interface Database {
           status?: BookingStatus;
           updated_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: 'bookings_client_id_fkey';
+            columns: ['client_id'];
+            isOneToOne: false;
+            referencedRelation: 'users';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'bookings_service_id_fkey';
+            columns: ['service_id'];
+            isOneToOne: false;
+            referencedRelation: 'services';
+            referencedColumns: ['id'];
+          },
+        ];
       };
     };
+    Views: Record<string, never>;
     Functions: {
       verify_user_password: {
         Args: {
@@ -155,5 +176,13 @@ export interface Database {
         }[];
       };
     };
+    Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
   };
 }
+
+export type User = Database['public']['Tables']['users']['Row'];
+export type Service = Database['public']['Tables']['services']['Row'];
+export type WorkingHour = Database['public']['Tables']['working_hours']['Row'];
+export type BlockedDate = Database['public']['Tables']['blocked_dates']['Row'];
+export type Booking = Database['public']['Tables']['bookings']['Row'];

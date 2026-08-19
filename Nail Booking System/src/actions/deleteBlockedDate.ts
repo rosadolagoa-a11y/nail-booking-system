@@ -1,13 +1,11 @@
-import { action } from '@uibakery/data';
+import { supabase } from '../lib/supabase';
 
-function deleteBlockedDate() {
-  return action('deleteBlockedDate', 'SQL', {
-    datasourceName: 'Nail Designer Booking DB',
-    query: `
-      DELETE FROM blocked_dates
-      WHERE id = {{params.id}}::bigint;
-    `,
-  });
+export async function deleteBlockedDate(payload: { id: number }): Promise<void> {
+  const { error } = await supabase.from('blocked_dates').delete().eq('id', payload.id);
+
+  if (error) {
+    throw new Error(`Falha ao remover bloqueio: ${error.message}`);
+  }
 }
 
 export default deleteBlockedDate;

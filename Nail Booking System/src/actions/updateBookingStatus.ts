@@ -59,3 +59,5 @@ export async function updateBookingStatus(
 
   return data;
 }
+
+export default updateBookingStatus;

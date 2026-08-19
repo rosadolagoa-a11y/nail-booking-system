@@ -1,5 +1,8 @@
-module.exports = {
+import tailwindcssAnimate from 'tailwindcss-animate';
+
+export default {
   darkMode: ['selector'],
+  content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     container: {
       center: true,
@@ -127,5 +130,5 @@ module.exports = {
       },
     },
   },
-  plugins: [require('tailwindcss-animate')],
+  plugins: [tailwindcssAnimate],
 };

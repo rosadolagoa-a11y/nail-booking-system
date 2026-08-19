@@ -3,7 +3,7 @@
 import '@/index.css';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from '@/components/ui/sonner';
-import { AuthProvider } from '@/app/context/AuthContext';
+import { AuthProvider, useAuth } from '@/app/context/AuthContext';
 import { ProtectedRoute } from '@/app/components/ProtectedRoute';
 import { ClientLayout } from '@/app/components/ClientLayout';
 import { DesignerLayout } from '@/app/components/DesignerLayout';
@@ -17,6 +17,12 @@ import DesignerAgenda from '@/app/pages/designer/DesignerAgenda';
 import DesignerServices from '@/app/pages/designer/DesignerServices';
 import DesignerSchedule from '@/app/pages/designer/DesignerSchedule';
 
+function BookingFlowRoute() {
+  const { user } = useAuth();
+  if (!user) return null;
+  return <BookingFlow clientId={user.id} />;
+}
+
 function App() {
   return (
     <AuthProvider>
@@ -29,7 +35,7 @@ function App() {
           <Route element={<ProtectedRoute role="client" />}>
             <Route element={<ClientLayout />}>
               <Route path="/" element={<ServicesList />} />
-              <Route path="/reservar/:serviceId" element={<BookingFlow />} />
+              <Route path="/reservar/:serviceId" element={<BookingFlowRoute />} />
               <Route path="/minhas-reservas" element={<MyBookings />} />
             </Route>
           </Route>

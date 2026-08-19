@@ -1,14 +1,17 @@
-import { action } from '@uibakery/data';
+import { supabase } from '../lib/supabase';
+import type { WorkingHour } from '../types/database.types';
 
-function loadWorkingHours() {
-  return action('loadWorkingHours', 'SQL', {
-    datasourceName: 'Nail Designer Booking DB',
-    query: `
-      SELECT id, day_of_week, start_time, end_time, is_closed
-      FROM working_hours
-      ORDER BY day_of_week ASC;
-    `,
-  });
+export async function loadWorkingHours(): Promise<WorkingHour[]> {
+  const { data, error } = await supabase
+    .from('working_hours')
+    .select('id, day_of_week, start_time, end_time, is_closed')
+    .order('day_of_week', { ascending: true });
+
+  if (error) {
+    throw new Error(`Falha ao carregar expediente: ${error.message}`);
+  }
+
+  return data ?? [];
 }
 
 export default loadWorkingHours;

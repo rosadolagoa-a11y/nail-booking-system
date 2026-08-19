@@ -1,8 +1,6 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
-import { useLoadAction, useMutateAction } from '@uibakery/data';
 import loadServices from '@/actions/loadServices';
-import { EMPTY_PARAMS } from '@/app/lib/constants';
 import createService from '@/actions/createService';
 import updateService from '@/actions/updateService';
 import deleteService from '@/actions/deleteService';
@@ -22,15 +20,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-
-type Service = {
-  id: number;
-  name: string;
-  description: string | null;
-  duration_minutes: number;
-  price: string;
-  is_active: boolean;
-};
+import type { Service } from '@/types/database.types';
 
 type FormState = {
   id: number | null;
@@ -44,15 +34,23 @@ type FormState = {
 const emptyForm: FormState = { id: null, name: '', description: '', durationMinutes: '', price: '', isActive: true };
 
 export default function DesignerServices() {
-  const [services, loading, , refresh]: [Service[], boolean, Error | null, () => Promise<void>] = useLoadAction(
-    loadServices,
-    [],
-    EMPTY_PARAMS,
-  );
+  const [services, setServices] = useState<Service[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [updating, setUpdating] = useState(false);
 
-  const [runCreate, creating] = useMutateAction(createService);
-  const [runUpdate, updating] = useMutateAction(updateService);
-  const [runDelete] = useMutateAction(deleteService);
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      setServices(await loadServices());
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Service | null>(null);
@@ -69,7 +67,7 @@ export default function DesignerServices() {
       name: service.name,
       description: service.description ?? '',
       durationMinutes: String(service.duration_minutes),
-      price: service.price,
+      price: String(service.price),
       isActive: service.is_active,
     });
     setDialogOpen(true);
@@ -84,9 +82,19 @@ export default function DesignerServices() {
       isActive: form.isActive,
     };
     if (form.id) {
-      await runUpdate({ id: form.id, ...payload });
+      setUpdating(true);
+      try {
+        await updateService({ id: form.id, ...payload });
+      } finally {
+        setUpdating(false);
+      }
     } else {
-      await runCreate(payload);
+      setCreating(true);
+      try {
+        await createService(payload);
+      } finally {
+        setCreating(false);
+      }
     }
     setDialogOpen(false);
     await refresh();
@@ -94,7 +102,7 @@ export default function DesignerServices() {
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
-    await runDelete({ id: deleteTarget.id });
+    await deleteService({ id: deleteTarget.id });
     setDeleteTarget(null);
     await refresh();
   };

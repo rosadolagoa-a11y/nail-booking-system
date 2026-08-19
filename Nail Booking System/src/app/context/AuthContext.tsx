@@ -1,5 +1,4 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
-import { useMutateAction } from '@uibakery/data';
 import findUserByEmail from '@/actions/findUserByEmail';
 import createUser from '@/actions/createUser';
 import { hashPassword, verifyPassword } from '@/app/lib/passwordHash';
@@ -27,9 +26,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const [runFindUser] = useMutateAction(findUserByEmail);
-  const [runCreateUser] = useMutateAction(createUser);
-
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
@@ -53,8 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(
     async (email: string, password: string) => {
-      const results = await runFindUser({ email: email.trim().toLowerCase() });
-      const row = Array.isArray(results) ? results[0] : null;
+      const row = await findUserByEmail({ email: email.trim().toLowerCase() });
       if (!row) {
         return { ok: false, error: 'E-mail ou senha inválidos.' };
       }
@@ -65,32 +60,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       persistUser({ id: row.id, name: row.name, email: row.email, role: row.role });
       return { ok: true };
     },
-    [runFindUser, persistUser],
+    [persistUser],
   );
 
   const signup = useCallback(
     async (name: string, email: string, password: string) => {
       const normalizedEmail = email.trim().toLowerCase();
-      const existing = await runFindUser({ email: normalizedEmail });
-      const existingRow = Array.isArray(existing) ? existing[0] : null;
+      const existingRow = await findUserByEmail({ email: normalizedEmail });
       if (existingRow) {
         return { ok: false, error: 'Já existe uma conta com este e-mail.' };
       }
       const passwordHash = await hashPassword(password);
-      const created = await runCreateUser({
+      const row = await createUser({
         name: name.trim(),
         email: normalizedEmail,
         passwordHash,
         role: 'client',
       });
-      const row = Array.isArray(created) ? created[0] : null;
-      if (!row) {
-        return { ok: false, error: 'Não foi possível criar a conta. Tente novamente.' };
-      }
       persistUser({ id: row.id, name: row.name, email: row.email, role: row.role });
       return { ok: true };
     },
-    [runFindUser, runCreateUser, persistUser],
+    [persistUser],
   );
 
   const logout = useCallback(() => {

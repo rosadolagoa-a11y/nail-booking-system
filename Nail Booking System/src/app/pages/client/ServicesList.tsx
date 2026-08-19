@@ -1,22 +1,34 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Clock, DollarSign, Sparkles } from 'lucide-react';
-import { useLoadAction } from '@uibakery/data';
 import loadActiveServices from '@/actions/loadActiveServices';
-import { EMPTY_PARAMS } from '@/app/lib/constants';
+import type { Service } from '@/types/database.types';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
-type Service = {
-  id: number;
-  name: string;
-  description: string | null;
-  duration_minutes: number;
-  price: string;
-};
-
 export default function ServicesList() {
-  const [services, loading, error]: [Service[], boolean, Error | null, () => Promise<void>] = useLoadAction(loadActiveServices, [], EMPTY_PARAMS);
+  const [services, setServices] = useState<Service[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    setLoading(true);
+    loadActiveServices()
+      .then(data => {
+        if (isMounted) setServices(data);
+      })
+      .catch((err: Error) => {
+        if (isMounted) setError(err);
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   return (
     <div className="space-y-6">

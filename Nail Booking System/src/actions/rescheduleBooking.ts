@@ -1,19 +1,35 @@
-import { action } from '@uibakery/data';
+import { supabase } from '../lib/supabase';
+import type { Booking } from '../types/database.types';
 
-function rescheduleBooking() {
-  return action('rescheduleBooking', 'SQL', {
-    datasourceName: 'Nail Designer Booking DB',
-    query: `
-      UPDATE bookings
-      SET
-        booking_date = {{params.bookingDate}}::date,
-        start_time = {{params.startTime}}::time,
-        end_time = {{params.endTime}}::time,
-        status = 'confirmed',
-        updated_at = NOW()
-      WHERE id = {{params.id}}::bigint;
-    `,
-  });
+interface RescheduleBookingPayload {
+  id: number;
+  bookingDate: string;
+  startTime: string;
+  endTime: string;
+}
+
+export async function rescheduleBooking(payload: RescheduleBookingPayload): Promise<Booking> {
+  const { data, error } = await supabase
+    .from('bookings')
+    .update({
+      booking_date: payload.bookingDate,
+      start_time: payload.startTime,
+      end_time: payload.endTime,
+      status: 'confirmed',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', payload.id)
+    .select()
+    .single();
+
+  if (error) {
+    if (error.code === '23P01') {
+      throw new Error('Este horário acabou de ser preenchido por outro agendamento.');
+    }
+    throw new Error(`Falha ao reagendar: ${error.message}`);
+  }
+
+  return data;
 }
 
 export default rescheduleBooking;

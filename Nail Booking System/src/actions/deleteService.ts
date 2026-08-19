@@ -1,13 +1,11 @@
-import { action } from '@uibakery/data';
+import { supabase } from '../lib/supabase';
 
-function deleteService() {
-  return action('deleteService', 'SQL', {
-    datasourceName: 'Nail Designer Booking DB',
-    query: `
-      DELETE FROM services
-      WHERE id = {{params.id}}::bigint;
-    `,
-  });
+export async function deleteService(payload: { id: number }): Promise<void> {
+  const { error } = await supabase.from('services').delete().eq('id', payload.id);
+
+  if (error) {
+    throw new Error(`Falha ao excluir serviço: ${error.message}`);
+  }
 }
 
 export default deleteService;

@@ -1,11 +1,9 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { toDateOnly } from '@/app/lib/timeUtils';
 import { ptBR } from 'date-fns/locale';
 import { Plus, Trash2 } from 'lucide-react';
-import { useLoadAction, useMutateAction } from '@uibakery/data';
 import loadWorkingHours from '@/actions/loadWorkingHours';
-import { EMPTY_PARAMS } from '@/app/lib/constants';
 import updateWorkingHours from '@/actions/updateWorkingHours';
 import loadBlockedDates from '@/actions/loadBlockedDates';
 import createBlockedDate from '@/actions/createBlockedDate';
@@ -30,21 +28,41 @@ type BlockedDateRow = { id: number; blocked_date: string; reason: string | null 
 const dayNames = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
 export default function DesignerSchedule() {
-  const [workingHours, whLoading, , refreshWh]: [WorkingHourRow[], boolean, Error | null, () => Promise<void>] =
-    useLoadAction(loadWorkingHours, [], EMPTY_PARAMS);
-  const [blockedDates, bdLoading, , refreshBd]: [BlockedDateRow[], boolean, Error | null, () => Promise<void>] =
-    useLoadAction(loadBlockedDates, [], EMPTY_PARAMS);
-
-  const [runUpdateWh] = useMutateAction(updateWorkingHours);
-  const [runCreateBlocked, creatingBlocked] = useMutateAction(createBlockedDate);
-  const [runDeleteBlocked] = useMutateAction(deleteBlockedDate);
+  const [workingHours, setWorkingHours] = useState<WorkingHourRow[]>([]);
+  const [whLoading, setWhLoading] = useState(true);
+  const [blockedDates, setBlockedDates] = useState<BlockedDateRow[]>([]);
+  const [bdLoading, setBdLoading] = useState(true);
+  const [creatingBlocked, setCreatingBlocked] = useState(false);
 
   const [newBlockedDate, setNewBlockedDate] = useState<Date | undefined>(undefined);
   const [reason, setReason] = useState('');
 
+  const refreshWh = useCallback(async () => {
+    setWhLoading(true);
+    try {
+      setWorkingHours(await loadWorkingHours());
+    } finally {
+      setWhLoading(false);
+    }
+  }, []);
+
+  const refreshBd = useCallback(async () => {
+    setBdLoading(true);
+    try {
+      setBlockedDates(await loadBlockedDates());
+    } finally {
+      setBdLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshWh();
+    void refreshBd();
+  }, [refreshWh, refreshBd]);
+
   const handleWhChange = async (row: WorkingHourRow, changes: Partial<WorkingHourRow>) => {
     const updated = { ...row, ...changes };
-    await runUpdateWh({
+    await updateWorkingHours({
       dayOfWeek: row.day_of_week,
       startTime: updated.start_time,
       endTime: updated.end_time,
@@ -55,14 +73,19 @@ export default function DesignerSchedule() {
 
   const handleAddBlocked = async () => {
     if (!newBlockedDate) return;
-    await runCreateBlocked({ blockedDate: format(newBlockedDate, 'yyyy-MM-dd'), reason: reason || null });
-    setNewBlockedDate(undefined);
-    setReason('');
-    await refreshBd();
+    setCreatingBlocked(true);
+    try {
+      await createBlockedDate({ blockedDate: format(newBlockedDate, 'yyyy-MM-dd'), reason: reason || null });
+      setNewBlockedDate(undefined);
+      setReason('');
+      await refreshBd();
+    } finally {
+      setCreatingBlocked(false);
+    }
   };
 
   const handleDeleteBlocked = async (id: number) => {
-    await runDeleteBlocked({ id });
+    await deleteBlockedDate({ id });
     await refreshBd();
   };
 
